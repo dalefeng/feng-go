@@ -14,31 +14,32 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := &Context{W: w, R: r}
 	method := r.Method
 	for _, group := range e.routerGroups {
-		for name, handleFuncMap := range group.handleFuncMap {
-			url := "/" + group.name + name
-			// 路由匹配
-			if r.RequestURI != url {
-				continue
-			}
-
-			// 优先匹配 Any
-			handleFunc, ok := handleFuncMap[ANY]
-			if ok {
-				handleFunc(ctx)
-				return
-			}
-
-			// method 匹配
-			handleFunc, ok = handleFuncMap[method]
-			if ok {
-				handleFunc(ctx)
-				return
-			}
-
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			fmt.Fprintf(w, "%s %s not allowed", r.RequestURI, method)
+		// 将分组截取
+		routerName := SubStringLast(r.RequestURI, "/"+group.name)
+		node := group.treeNode.Get(routerName)
+		if node == nil {
+			// 路由没匹配
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprintf(w, "%s %s not found - tree node", r.RequestURI, method)
 			return
 		}
+		// 优先匹配 Any
+		handleFunc, ok := group.handleFuncMap[routerName][ANY]
+		if ok {
+			handleFunc(ctx)
+			return
+		}
+
+		// method 匹配
+		handleFunc, ok = group.handleFuncMap[routerName][method]
+		if ok {
+			handleFunc(ctx)
+			return
+		}
+
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		fmt.Fprintf(w, "%s %s not allowed", r.RequestURI, method)
+		return
 	}
 	// 路由匹配失败
 	w.WriteHeader(http.StatusNotFound)

@@ -17,6 +17,7 @@ func (r *router) Group(name string) *routerGroup {
 		name:            name,
 		handleFuncMap:   make(map[string]map[string]HandleFunc),
 		handleMethodMap: make(map[string][]string),
+		treeNode:        &treeNode{name: "/", children: make([]*treeNode, 0)},
 	}
 	r.routerGroups = append(r.routerGroups, group)
 
@@ -27,6 +28,7 @@ type routerGroup struct {
 	name            string // 组名
 	handleFuncMap   map[string]map[string]HandleFunc
 	handleMethodMap map[string][]string
+	treeNode        *treeNode
 }
 
 func (r *routerGroup) handle(name, method string, handleFunc HandleFunc) {
@@ -39,7 +41,8 @@ func (r *routerGroup) handle(name, method string, handleFunc HandleFunc) {
 		panic("路由已存在")
 	}
 	r.handleFuncMap[name][method] = handleFunc
-	r.handleMethodMap[method] = append(r.handleMethodMap[method], name)
+
+	r.treeNode.Put(name)
 }
 
 func (r *routerGroup) Any(name string, handleFunc HandleFunc) {
