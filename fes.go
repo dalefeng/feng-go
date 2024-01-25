@@ -17,21 +17,21 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// 将分组截取
 		routerName := SubStringLast(r.RequestURI, "/"+group.name)
 		node := group.treeNode.Get(routerName)
-		if node == nil {
+		if node == nil || !node.isEnd {
 			// 路由没匹配
 			w.WriteHeader(http.StatusNotFound)
 			fmt.Fprintf(w, "%s %s not found - tree node", r.RequestURI, method)
 			return
 		}
 		// 优先匹配 Any
-		handleFunc, ok := group.handleFuncMap[routerName][ANY]
+		handleFunc, ok := group.handleFuncMap[node.routerName][ANY]
 		if ok {
 			handleFunc(ctx)
 			return
 		}
 
 		// method 匹配
-		handleFunc, ok = group.handleFuncMap[routerName][method]
+		handleFunc, ok = group.handleFuncMap[node.routerName][method]
 		if ok {
 			handleFunc(ctx)
 			return
@@ -53,7 +53,6 @@ func NewEngine(port string) *Engine {
 }
 
 func (e *Engine) Run() {
-
 	http.Handle("/", e)
 	err := http.ListenAndServe(":8111", nil)
 	if err != nil {
