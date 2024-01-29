@@ -6,7 +6,7 @@ import (
 
 const ANY = "ANY"
 
-type HandleFunc func(ctx *Context)
+type HandlerFunc func(ctx *Context)
 
 type router struct {
 	routerGroups []*routerGroup
@@ -15,7 +15,7 @@ type router struct {
 func (r *router) Group(name string) *routerGroup {
 	group := &routerGroup{
 		name:            name,
-		handleFuncMap:   make(map[string]map[string]HandleFunc),
+		handleFuncMap:   make(map[string]map[string]HandlerFunc),
 		handleMethodMap: make(map[string][]string),
 		treeNode:        &treeNode{name: "/", children: make([]*treeNode, 0)},
 	}
@@ -26,15 +26,15 @@ func (r *router) Group(name string) *routerGroup {
 
 type routerGroup struct {
 	name            string // 组名
-	handleFuncMap   map[string]map[string]HandleFunc
+	handleFuncMap   map[string]map[string]HandlerFunc
 	handleMethodMap map[string][]string
 	treeNode        *treeNode
 }
 
-func (r *routerGroup) handle(name, method string, handleFunc HandleFunc) {
+func (r *routerGroup) handle(name, method string, handleFunc HandlerFunc) {
 	_, ok := r.handleFuncMap[name]
 	if !ok {
-		r.handleFuncMap[name] = make(map[string]HandleFunc)
+		r.handleFuncMap[name] = make(map[string]HandlerFunc)
 	}
 	_, ok = r.handleFuncMap[name][method]
 	if ok {
@@ -45,18 +45,24 @@ func (r *routerGroup) handle(name, method string, handleFunc HandleFunc) {
 	r.treeNode.Put(name)
 }
 
-func (r *routerGroup) Any(name string, handleFunc HandleFunc) {
-	r.handle(name, ANY, handleFunc)
+func (r *routerGroup) Any(name string, handlerFunc HandlerFunc) {
+	r.handle(name, ANY, handlerFunc)
 }
-func (r *routerGroup) Get(name string, handleFunc HandleFunc) {
-	r.handle(name, http.MethodGet, handleFunc)
+func (r *routerGroup) Get(name string, handlerFunc HandlerFunc) {
+	r.handle(name, http.MethodGet, handlerFunc)
 }
-func (r *routerGroup) Post(name string, handleFunc HandleFunc) {
-	r.handle(name, http.MethodPost, handleFunc)
+func (r *routerGroup) Post(name string, handlerFunc HandlerFunc) {
+	r.handle(name, http.MethodPost, handlerFunc)
 }
-func (r *routerGroup) Put(name string, handleFunc HandleFunc) {
-	r.handle(name, http.MethodPut, handleFunc)
+func (r *routerGroup) Put(name string, handlerFunc HandlerFunc) {
+	r.handle(name, http.MethodPut, handlerFunc)
 }
-func (r *routerGroup) Delete(name string, handleFunc HandleFunc) {
-	r.handle(name, http.MethodDelete, handleFunc)
+func (r *routerGroup) Delete(name string, handlerFunc HandlerFunc) {
+	r.handle(name, http.MethodDelete, handlerFunc)
+}
+func (r *routerGroup) Patch(name string, handlerFunc HandlerFunc) {
+	r.handle(name, http.MethodPatch, handlerFunc)
+}
+func (r *routerGroup) Head(name string, handlerFunc HandlerFunc) {
+	r.handle(name, http.MethodHead, handlerFunc)
 }
