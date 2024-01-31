@@ -11,6 +11,10 @@ type Engine struct {
 }
 
 func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	e.httpRequestHandle(w, r)
+}
+
+func (e *Engine) httpRequestHandle(w http.ResponseWriter, r *http.Request) {
 	ctx := &Context{W: w, R: r}
 	method := r.Method
 	for _, group := range e.routerGroups {
@@ -26,14 +30,14 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// 优先匹配 Any
 		handleFunc, ok := group.handleFuncMap[node.routerName][ANY]
 		if ok {
-			handleFunc(ctx)
+			group.MethodHandle(ctx, handleFunc)
 			return
 		}
 
 		// method 匹配
 		handleFunc, ok = group.handleFuncMap[node.routerName][method]
 		if ok {
-			handleFunc(ctx)
+			group.MethodHandle(ctx, handleFunc)
 			return
 		}
 
