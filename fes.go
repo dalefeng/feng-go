@@ -30,14 +30,14 @@ func (e *Engine) httpRequestHandle(w http.ResponseWriter, r *http.Request) {
 		// 优先匹配 Any
 		handleFunc, ok := group.handleFuncMap[node.routerName][ANY]
 		if ok {
-			group.MethodHandle(ctx, handleFunc)
+			group.MethodHandle(ctx, node.routerName, ANY, handleFunc)
 			return
 		}
 
 		// method 匹配
 		handleFunc, ok = group.handleFuncMap[node.routerName][method]
 		if ok {
-			group.MethodHandle(ctx, handleFunc)
+			group.MethodHandle(ctx, node.routerName, method, handleFunc)
 			return
 		}
 
