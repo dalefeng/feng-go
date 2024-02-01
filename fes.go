@@ -2,12 +2,20 @@ package fesgo
 
 import (
 	"fmt"
+	"github.com/dalefeng/fesgo/render"
+	"html/template"
 	"log"
 	"net/http"
 )
 
 type Engine struct {
 	router
+	funcMap    template.FuncMap
+	HTMLRender render.HTMLRender
+}
+
+func (e *Engine) SetFuncMap(funcMap template.FuncMap) {
+	e.funcMap = funcMap
 }
 
 func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
