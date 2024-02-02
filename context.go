@@ -8,6 +8,8 @@ import (
 type Context struct {
 	W http.ResponseWriter
 	R *http.Request
+
+	engine *Engine
 }
 
 func (c *Context) HTML(status int, html string) {
@@ -39,6 +41,15 @@ func (c *Context) HTMLTemplateGlob(name string, data any, pattern string) (err e
 		return
 	}
 	err = t.Execute(c.W, data)
+	if err != nil {
+		c.W.Write([]byte(err.Error()))
+		return
+	}
+	return
+}
+func (c *Context) Template(name string, data any) (err error) {
+	c.W.Header().Set("Content-Type", "text/html; charset=utf-8")
+	err = c.engine.HTMLRender.Template.ExecuteTemplate(c.W, name, data)
 	if err != nil {
 		c.W.Write([]byte(err.Error()))
 		return

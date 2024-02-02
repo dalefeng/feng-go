@@ -17,13 +17,21 @@ type Engine struct {
 func (e *Engine) SetFuncMap(funcMap template.FuncMap) {
 	e.funcMap = funcMap
 }
+func (e *Engine) LoadTemplate(pattern string) {
+	t := template.Must(template.New("").Funcs(e.funcMap).ParseGlob(pattern))
+	e.SetHtmlTemplate(t)
+}
+
+func (e *Engine) SetHtmlTemplate(t *template.Template) {
+	e.HTMLRender = render.HTMLRender{Template: t}
+}
 
 func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	e.httpRequestHandle(w, r)
 }
 
 func (e *Engine) httpRequestHandle(w http.ResponseWriter, r *http.Request) {
-	ctx := &Context{W: w, R: r}
+	ctx := &Context{W: w, R: r, engine: e}
 	method := r.Method
 	for _, group := range e.routerGroups {
 		// 将分组截取
