@@ -1,6 +1,9 @@
 package fesgo
 
-import "strings"
+import (
+	"strings"
+	"unicode"
+)
 
 func SubStringLast(str string, substring string) string {
 	index := strings.Index(str, substring)
@@ -9,4 +12,13 @@ func SubStringLast(str string, substring string) string {
 	}
 
 	return str[index+len(substring):]
+}
+
+func IsASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] > unicode.MaxASCII {
+			return false
+		}
+	}
+	return true
 }
