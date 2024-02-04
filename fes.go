@@ -6,12 +6,28 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"sync"
 )
 
 type Engine struct {
 	router
 	funcMap    template.FuncMap
 	HTMLRender render.HTMLRender
+	pool       sync.Pool
+}
+
+func NewEngine() *Engine {
+	engine := &Engine{
+		router: router{},
+	}
+	engine.pool.New = func() any {
+		return engine.allocateContext()
+	}
+	return engine
+}
+
+func (e *Engine) allocateContext() any {
+	return &Context{engine: e}
 }
 
 func (e *Engine) SetFuncMap(funcMap template.FuncMap) {
@@ -27,11 +43,14 @@ func (e *Engine) SetHtmlTemplate(t *template.Template) {
 }
 
 func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	e.httpRequestHandle(w, r)
+	ctx := e.pool.Get().(*Context)
+	ctx.W = w
+	ctx.R = r
+	e.httpRequestHandle(ctx, w, r)
+	e.pool.Put(ctx)
 }
 
-func (e *Engine) httpRequestHandle(w http.ResponseWriter, r *http.Request) {
-	ctx := &Context{W: w, R: r, engine: e}
+func (e *Engine) httpRequestHandle(ctx *Context, w http.ResponseWriter, r *http.Request) {
 	method := r.Method
 	for _, group := range e.routerGroups {
 		// 将分组截取
@@ -64,12 +83,6 @@ func (e *Engine) httpRequestHandle(w http.ResponseWriter, r *http.Request) {
 	// 路由匹配失败
 	w.WriteHeader(http.StatusNotFound)
 	fmt.Fprintf(w, "%s %s not found", r.RequestURI, method)
-}
-
-func NewEngine(port string) *Engine {
-	return &Engine{
-		router: router{},
-	}
 }
 
 func (e *Engine) Run() {
