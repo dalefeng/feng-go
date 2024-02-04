@@ -12,8 +12,39 @@ type Context struct {
 	W http.ResponseWriter
 	R *http.Request
 
-	engine *Engine
-	err    error
+	engine     *Engine
+	queryCache url.Values
+}
+
+func (c *Context) ClearContext() {
+	c.queryCache = nil
+}
+
+func (c *Context) initQueryCache() {
+	if c.queryCache != nil {
+		return
+	}
+	if c.R == nil {
+		c.queryCache = url.Values{}
+		return
+	}
+	c.queryCache = c.R.URL.Query()
+}
+
+func (c *Context) GetDefaultQuery(key string, defaultValue string) string {
+	values, ok := c.queryCache[key]
+	if !ok {
+		return defaultValue
+	}
+	return values[0]
+}
+
+func (c *Context) GetQuery(key string) string {
+	c.initQueryCache()
+	return c.queryCache.Get(key)
+}
+func (c *Context) GetQueryArr(key string) []string {
+	return c.queryCache[key]
 }
 
 func (c *Context) HTML(status int, html string) {
@@ -127,5 +158,5 @@ func (c *Context) Render(statusCode int, r render.Render) error {
 
 func (c *Context) Abort(err error) {
 	c.W.WriteHeader(http.StatusInternalServerError)
-	c.W.Write([]byte(c.err.Error()))
+	c.W.Write([]byte(err.Error()))
 }

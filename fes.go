@@ -47,6 +47,7 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx.W = w
 	ctx.R = r
 	e.httpRequestHandle(ctx, w, r)
+	ctx.ClearContext()
 	e.pool.Put(ctx)
 }
 
@@ -54,7 +55,7 @@ func (e *Engine) httpRequestHandle(ctx *Context, w http.ResponseWriter, r *http.
 	method := r.Method
 	for _, group := range e.routerGroups {
 		// 将分组截取
-		routerName := SubStringLast(r.RequestURI, "/"+group.name)
+		routerName := SubStringLast(r.URL.Path, "/"+group.name)
 		node := group.treeNode.Get(routerName)
 		if node == nil || !node.isEnd {
 			// 路由没匹配
