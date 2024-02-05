@@ -14,6 +14,7 @@ type Context struct {
 
 	engine     *Engine
 	queryCache url.Values
+	queryMap   map[string]map[string]string
 }
 
 func (c *Context) ClearContext() {
@@ -21,17 +22,20 @@ func (c *Context) ClearContext() {
 }
 
 func (c *Context) initQueryCache() {
-	if c.queryCache != nil {
+	if c.queryCache != nil && c.queryMap != nil {
 		return
 	}
 	if c.R == nil {
 		c.queryCache = url.Values{}
+		c.queryMap = make(map[string]map[string]string)
 		return
 	}
 	c.queryCache = c.R.URL.Query()
+	c.queryMap = ParseParamsMap(c.queryCache)
 }
 
 func (c *Context) GetDefaultQuery(key string, defaultValue string) string {
+	c.initQueryCache()
 	values, ok := c.queryCache[key]
 	if !ok {
 		return defaultValue
@@ -39,11 +43,18 @@ func (c *Context) GetDefaultQuery(key string, defaultValue string) string {
 	return values[0]
 }
 
+func (c *Context) GetQueryMap(key string) (map[string]string, bool) {
+	c.initQueryCache()
+	values, ok := c.queryMap[key]
+	return values, ok
+}
+
 func (c *Context) GetQuery(key string) string {
 	c.initQueryCache()
 	return c.queryCache.Get(key)
 }
 func (c *Context) GetQueryArr(key string) []string {
+	c.initQueryCache()
 	return c.queryCache[key]
 }
 
