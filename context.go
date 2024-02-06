@@ -1,12 +1,19 @@
 package fesgo
 
 import (
+	"errors"
 	"fmt"
 	"github.com/dalefeng/fesgo/render"
 	"html/template"
+	"io"
+	"log"
+	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
 )
+
+var defaultMultipartMemory int64 = 32 << 20 // 32M
 
 type Context struct {
 	W http.ResponseWriter
@@ -15,6 +22,8 @@ type Context struct {
 	engine     *Engine
 	queryCache url.Values
 	queryMap   map[string]map[string]string
+	formCache  url.Values
+	formMap    map[string]map[string]string
 }
 
 func (c *Context) ClearContext() {
@@ -34,6 +43,24 @@ func (c *Context) initQueryCache() {
 	c.queryMap = ParseParamsMap(c.queryCache)
 }
 
+func (c *Context) initFormCache() {
+	if c.formCache != nil && c.R.PostForm != nil {
+		return
+	}
+	if c.R == nil {
+		c.formCache = url.Values{}
+		c.formMap = make(map[string]map[string]string)
+		return
+	}
+	if err := c.R.ParseMultipartForm(defaultMultipartMemory); err != nil {
+		if !errors.Is(err, http.ErrNotMultipart) {
+			log.Println(err)
+		}
+	}
+	c.formCache = c.R.PostForm
+	c.formMap = ParseParamsMap(c.formCache)
+}
+
 func (c *Context) GetDefaultQuery(key string, defaultValue string) string {
 	c.initQueryCache()
 	values, ok := c.queryCache[key]
@@ -49,13 +76,66 @@ func (c *Context) GetQueryMap(key string) (map[string]string, bool) {
 	return values, ok
 }
 
+func (c *Context) GetPostFormMap(key string) (map[string]string, bool) {
+	c.initFormCache()
+	values, ok := c.formMap[key]
+	return values, ok
+}
+
 func (c *Context) GetQuery(key string) string {
 	c.initQueryCache()
 	return c.queryCache.Get(key)
 }
-func (c *Context) GetQueryArr(key string) []string {
+func (c *Context) GetPostForm(key string) string {
+	c.initFormCache()
+	return c.formCache.Get(key)
+}
+func (c *Context) GetQueryArray(key string) []string {
 	c.initQueryCache()
 	return c.queryCache[key]
+}
+
+func (c *Context) GetPostFormArray(key string) []string {
+	c.initFormCache()
+	return c.queryCache[key]
+}
+
+func (c *Context) FormFile(name string) *multipart.FileHeader {
+	file, header, err := c.R.FormFile(name)
+	if err != nil {
+		log.Println(err)
+	}
+	defer file.Close()
+	return header
+}
+
+func (c *Context) FormFiles(name string) []*multipart.FileHeader {
+	forms, err := c.MultipartForm()
+	if err != nil {
+		return make([]*multipart.FileHeader, 0)
+	}
+	return forms.File[name]
+}
+
+func (c *Context) SaveUploadFile(file *multipart.FileHeader, dstPath string) (err error) {
+	src, err := file.Open()
+	if err != nil {
+		return
+	}
+	defer src.Close()
+	dst, err := os.Create(dstPath)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer dst.Close()
+	_, err = io.Copy(dst, src)
+	return
+}
+
+func (c *Context) MultipartForm() (*multipart.Form, error) {
+	err := c.R.ParseMultipartForm(defaultMultipartMemory)
+	return c.R.MultipartForm, err
 }
 
 func (c *Context) HTML(status int, html string) {
