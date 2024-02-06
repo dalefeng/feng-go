@@ -3,6 +3,7 @@ package fesgo
 import (
 	"errors"
 	"fmt"
+	"github.com/dalefeng/fesgo/binding"
 	"github.com/dalefeng/fesgo/render"
 	"html/template"
 	"io"
@@ -24,6 +25,8 @@ type Context struct {
 	queryMap   map[string]map[string]string
 	formCache  url.Values
 	formMap    map[string]map[string]string
+
+	DisallowUnknownFields bool
 }
 
 func (c *Context) ClearContext() {
@@ -138,6 +141,25 @@ func (c *Context) MultipartForm() (*multipart.Form, error) {
 	return c.R.MultipartForm, err
 }
 
+func (c *Context) BindJson(obj any) error {
+	json := binding.JSON
+	json.DisallowUnknownFields = false
+	return c.MustBindWith(obj, json)
+}
+
+func (c *Context) MustBindWith(obj any, bind binding.Binding) error {
+	err := c.ShouldBind(obj, bind)
+	if err != nil {
+		c.W.WriteHeader(http.StatusBadRequest)
+		return err
+	}
+	return nil
+}
+
+func (c *Context) ShouldBind(obj any, binding binding.Binding) error {
+	return binding.Bind(c.R, obj)
+}
+
 func (c *Context) HTML(status int, html string) {
 	c.W.Header().Set("Content-Type", "text/html; charset=utf-8")
 	c.W.WriteHeader(status)
@@ -243,7 +265,9 @@ func (c *Context) String(status int, format string, values ...any) {
 
 func (c *Context) Render(statusCode int, r render.Render) error {
 	err := r.Render(c.W)
-	c.W.WriteHeader(statusCode)
+	if statusCode != http.StatusOK {
+		c.W.WriteHeader(statusCode)
+	}
 	return err
 }
 
