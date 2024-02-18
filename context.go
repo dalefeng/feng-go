@@ -26,6 +26,7 @@ type Context struct {
 	formCache  url.Values
 	formMap    map[string]map[string]string
 
+	StatusCode            int
 	DisallowUnknownFields bool
 }
 
@@ -265,9 +266,13 @@ func (c *Context) String(status int, format string, values ...any) {
 
 func (c *Context) Render(statusCode int, r render.Render) error {
 	err := r.Render(c.W)
-	if statusCode != http.StatusOK {
+	if statusCode == http.StatusOK {
+		c.StatusCode = http.StatusOK
+	} else {
+		c.StatusCode = statusCode
 		c.W.WriteHeader(statusCode)
 	}
+
 	return err
 }
 

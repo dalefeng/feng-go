@@ -8,6 +8,8 @@ const ANY = "ANY"
 
 type HandlerFunc func(ctx *Context)
 
+var EmptyHandlerFunc = HandlerFunc(func(ctx *Context) {})
+
 type router struct {
 	routerGroups []*routerGroup
 }
@@ -40,6 +42,9 @@ func (r *routerGroup) Use(middlewareFunc ...MiddlewareFunc) {
 }
 
 func (r *routerGroup) MethodHandle(ctx *Context, name, method string, h HandlerFunc) {
+	if h == nil {
+		h = EmptyHandlerFunc
+	}
 	// 组中间件
 	if r.middleware != nil {
 		for _, middlewareFunc := range r.middleware {

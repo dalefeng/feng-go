@@ -59,6 +59,8 @@ func (e *Engine) httpRequestHandle(ctx *Context, w http.ResponseWriter, r *http.
 		node := group.treeNode.Get(routerName)
 		if node == nil || !node.isEnd {
 			// 路由没匹配
+			ctx.StatusCode = http.StatusNotFound
+			group.MethodHandle(ctx, routerName, ANY, nil)
 			w.WriteHeader(http.StatusNotFound)
 			fmt.Fprintf(w, "%s %s not found - tree node", r.RequestURI, method)
 			return
@@ -77,6 +79,8 @@ func (e *Engine) httpRequestHandle(ctx *Context, w http.ResponseWriter, r *http.
 			return
 		}
 
+		ctx.StatusCode = http.StatusMethodNotAllowed
+		group.MethodHandle(ctx, node.routerName, ANY, nil)
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		fmt.Fprintf(w, "%s %s not allowed", r.RequestURI, method)
 		return
