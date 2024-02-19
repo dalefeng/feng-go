@@ -90,7 +90,7 @@ var defaultFormatter = func(param *LogFormatterParams) string {
 		param.Latency = param.Latency.Truncate(time.Second)
 	}
 	if param.isDisplayColor {
-		return fmt.Sprintf("%s [fesgo] %s %s %v %s |%s %3d %s| %s %10s %s | %13v |%s %-7s %s  %s %#v %s \n",
+		return fmt.Sprintf("%s[fesgo]%s %s %v %s |%s %3d %s| %s %10s %s | %13v |%s %-7s %s  %s %#v %s \n",
 			yellow, reset,
 			blue, param.TimeStamp.Format("2006/01/02 - 15:04:05"), reset,
 			param.StatusCodeColor(), param.StatusCode, reset,
@@ -115,8 +115,13 @@ func LoggingWithConfig(config LoggingConfig, next HandlerFunc) HandlerFunc {
 
 	out := config.out
 
+	displayColor := false
+
 	if out == nil {
 		out = DefaultWriter
+	}
+	if out == DefaultWriter {
+		displayColor = true
 	}
 
 	return func(c *Context) {
@@ -142,7 +147,7 @@ func LoggingWithConfig(config LoggingConfig, next HandlerFunc) HandlerFunc {
 			ClientIP:       clientIP,
 			Method:         r.Method,
 			Path:           path,
-			isDisplayColor: true,
+			isDisplayColor: displayColor,
 		}
 		fmt.Fprint(out, formatter(param))
 	}
