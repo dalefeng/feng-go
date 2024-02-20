@@ -267,18 +267,22 @@ func (c *Context) String(status int, format string, values ...any) {
 }
 
 func (c *Context) Render(statusCode int, r render.Render) error {
-	err := r.Render(c.W)
 	if statusCode == http.StatusOK {
 		c.StatusCode = http.StatusOK
 	} else {
-		c.StatusCode = statusCode
-		c.W.WriteHeader(statusCode)
+		c.SetStatusCode(statusCode)
 	}
+	err := r.Render(c.W)
 
 	return err
 }
 
 func (c *Context) Abort(err error) {
-	c.W.WriteHeader(http.StatusInternalServerError)
+	c.SetStatusCode(http.StatusInternalServerError)
 	c.W.Write([]byte(err.Error()))
+}
+
+func (c *Context) SetStatusCode(code int) {
+	c.W.WriteHeader(code)
+	c.StatusCode = code
 }

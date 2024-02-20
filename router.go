@@ -12,6 +12,7 @@ var EmptyHandlerFunc = HandlerFunc(func(ctx *Context) {})
 
 type router struct {
 	routerGroups []*routerGroup
+	Engine       *Engine
 }
 
 func (r *router) Group(name string) *routerGroup {
@@ -22,8 +23,8 @@ func (r *router) Group(name string) *routerGroup {
 		handleMethodMap:   make(map[string][]string),
 		treeNode:          &treeNode{name: "/", children: make([]*treeNode, 0)},
 	}
+	group.Use(r.Engine.middles...)
 	r.routerGroups = append(r.routerGroups, group)
-
 	return group
 }
 

@@ -16,12 +16,14 @@ type Engine struct {
 	HTMLRender render.HTMLRender
 	pool       sync.Pool
 	Logger     *fesLog.Logger
+	middles    []MiddlewareFunc
 }
 
 func NewEngine() *Engine {
 	engine := &Engine{
 		router: router{},
 	}
+	engine.router.Engine = engine
 	engine.pool.New = func() any {
 		return engine.allocateContext()
 	}
@@ -30,6 +32,7 @@ func NewEngine() *Engine {
 
 func Default() *Engine {
 	engine := NewEngine()
+	engine.Use(Recovery)
 	engine.Logger = fesLog.Default()
 	return engine
 }
@@ -105,4 +108,8 @@ func (e *Engine) Run() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func (e *Engine) Use(middlewareFunc ...MiddlewareFunc) {
+	e.middles = middlewareFunc
 }

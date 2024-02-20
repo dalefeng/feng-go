@@ -13,16 +13,31 @@ func (f *TextFormatter) Format(params *FormatterParams) string {
 	now := time.Now().Format("2006-01-02 15:04:05")
 	b := strings.Builder{}
 	if params.IsColored {
-		b.WriteString(fmt.Sprintf("%s[fesgo]%s %s %v %s | level=%s%s%s | msg=%s%v %s | ",
+		b.WriteString(fmt.Sprintf("%s[fesgo]%s %s %v %s | level=%s%s%s | ",
 			yellow, reset,
 			blue, now, reset,
-			f.LevelColor(params.Level), params.Level.Level(), reset,
-			f.MsgColor(params.Level), params.Msg, reset))
+			f.LevelColor(params.Level), params.Level.Level(), reset))
+		if params.Level == LevelError {
+			b.WriteString(fmt.Sprintf("error cause by=%s%v%s", f.MsgColor(params.Level), params.Msg, reset))
+		} else {
+			b.WriteString(fmt.Sprintf("msg by=%s%v%s", f.MsgColor(params.Level), params.Msg, reset))
+		}
 	} else {
-		b.WriteString(fmt.Sprintf("[fesgo] %s | level=%s | msg=%v | ", now, params.Level.Level(), params.Msg))
+		b.WriteString(fmt.Sprintf("[fesgo] %s | level=%s | ", now, params.Level.Level()))
+		if params.Level == LevelError {
+			b.WriteString(fmt.Sprintf("error cause by=%v", params.Msg))
+		} else {
+			b.WriteString(fmt.Sprintf("msg by=%v", params.Msg))
+		}
 	}
+
 	fIndex := 0
 	fLen := len(params.Fields)
+	kLen := len(params.Args)
+	if fLen > 0 || kLen > 0 {
+		b.WriteString(" | ")
+	}
+
 	if params.Fields != nil {
 		for k, v := range params.Fields {
 			b.WriteString(fmt.Sprintf("%s=%#v", k, v))
@@ -32,9 +47,8 @@ func (f *TextFormatter) Format(params *FormatterParams) string {
 			fIndex++
 		}
 	}
-	kLen := len(params.Args)
 	for index, arg := range params.Args {
-		if index == 0 {
+		if index == 0 && fLen > 0 {
 			b.WriteString(", ")
 		}
 		if params.IsKeysAndValues { // key=value格式
