@@ -2,6 +2,7 @@ package logger
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -18,7 +19,10 @@ func (f *JsonFormatter) Format(params *FormatterParams) string {
 	if f.TimeDisplay {
 		params.Fields["time"] = now
 	}
-	params.Fields["msg"] = params.Msg
+	if len(params.Args) > 0 {
+		params.Fields["args"] = fmt.Sprintf("%v", params.Args)
+	}
+	params.Fields["msg"] = fmt.Sprintf("%v", params.Msg)
 	params.Fields["level"] = params.Level.Level()
 	marshal, err := json.Marshal(params.Fields)
 	if err != nil {

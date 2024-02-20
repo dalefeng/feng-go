@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/dalefeng/fesgo/binding"
+	fesLog "github.com/dalefeng/fesgo/logger"
 	"github.com/dalefeng/fesgo/render"
 	"html/template"
 	"io"
@@ -28,6 +29,7 @@ type Context struct {
 
 	StatusCode            int
 	DisallowUnknownFields bool
+	Logger                *fesLog.Logger
 }
 
 func (c *Context) ClearContext() {

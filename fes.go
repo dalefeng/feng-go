@@ -2,6 +2,7 @@ package fesgo
 
 import (
 	"fmt"
+	fesLog "github.com/dalefeng/fesgo/logger"
 	"github.com/dalefeng/fesgo/render"
 	"html/template"
 	"log"
@@ -14,6 +15,7 @@ type Engine struct {
 	funcMap    template.FuncMap
 	HTMLRender render.HTMLRender
 	pool       sync.Pool
+	Logger     *fesLog.Logger
 }
 
 func NewEngine() *Engine {
@@ -23,6 +25,12 @@ func NewEngine() *Engine {
 	engine.pool.New = func() any {
 		return engine.allocateContext()
 	}
+	return engine
+}
+
+func Default() *Engine {
+	engine := NewEngine()
+	engine.Logger = fesLog.Default()
 	return engine
 }
 
@@ -46,6 +54,7 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := e.pool.Get().(*Context)
 	ctx.W = w
 	ctx.R = r
+	ctx.Logger = e.Logger
 	e.httpRequestHandle(ctx, w, r)
 	ctx.ClearContext()
 	e.pool.Put(ctx)

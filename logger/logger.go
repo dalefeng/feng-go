@@ -59,11 +59,12 @@ type IFormatter interface {
 }
 
 type FormatterParams struct {
-	Level         Level
-	IsColored     bool
-	Fields        Fields
-	Msg           string
-	KeysAndValues []any
+	Level           Level
+	IsColored       bool
+	Fields          Fields
+	Msg             any
+	Args            []any
+	IsKeysAndValues bool
 }
 
 type Formatter struct {
@@ -97,16 +98,55 @@ func Default() *Logger {
 	}
 }
 
-func (l *Logger) Info(msg string, keysAndValues ...any) {
-	l.Print(LevelInfo, msg, keysAndValues...)
+func (l *Logger) Debug(args ...any) {
+	argsLen := len(args)
+	if argsLen <= 0 {
+		return
+	}
+	msg := args[0]
+	if argsLen == 1 {
+		l.Print(LevelDebug, msg, false)
+		return
+	}
+	l.Print(LevelDebug, msg, false, args[1:]...)
 }
 
-func (l *Logger) Error(msg string, keysAndValues ...any) {
-	l.Print(LevelError, msg, keysAndValues...)
+func (l *Logger) Debugw(msg string, keysAndValues ...any) {
+	l.Print(LevelDebug, msg, true, keysAndValues...)
 }
 
-func (l *Logger) Debug(msg string, keysAndValues ...any) {
-	l.Print(LevelDebug, msg, keysAndValues...)
+func (l *Logger) Info(args ...any) {
+	argsLen := len(args)
+	if argsLen <= 0 {
+		return
+	}
+	msg := args[0]
+	if argsLen == 1 {
+		l.Print(LevelInfo, msg, false)
+		return
+	}
+	l.Print(LevelInfo, msg, false, args[1:]...)
+}
+
+func (l *Logger) Infow(msg string, keysAndValues ...any) {
+	l.Print(LevelInfo, msg, true, keysAndValues...)
+}
+
+func (l *Logger) Error(args ...any) {
+	argsLen := len(args)
+	if argsLen <= 0 {
+		return
+	}
+	msg := args[0]
+	if argsLen == 1 {
+		l.Print(LevelError, msg, false)
+		return
+	}
+	l.Print(LevelError, msg, false, args[1:]...)
+}
+
+func (l *Logger) Errorw(msg string, keysAndValues ...any) {
+	l.Print(LevelError, msg, true, keysAndValues...)
 }
 
 func (l *Logger) WithFields(fields Fields) *Logger {
@@ -118,16 +158,17 @@ func (l *Logger) SetLevel(level Level) {
 	l.Level = level
 }
 
-func (l *Logger) Print(level Level, msg string, keysAndValues ...any) {
+func (l *Logger) Print(level Level, msg any, isKeyVal bool, args ...any) {
 	// 如果日志级别小于设置的级别， 则不输出
 	if level < l.Level {
 		return
 	}
 	params := &FormatterParams{
-		Level:         level,
-		Fields:        l.Fields,
-		Msg:           msg,
-		KeysAndValues: keysAndValues,
+		Level:           level,
+		Fields:          l.Fields,
+		Msg:             msg,
+		Args:            args,
+		IsKeysAndValues: isKeyVal,
 	}
 	for _, out := range l.Out {
 		if out.W == os.Stdout {
