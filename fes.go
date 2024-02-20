@@ -10,13 +10,16 @@ import (
 	"sync"
 )
 
+type ErrorHandler func(err error) (int, any)
+
 type Engine struct {
 	router
-	funcMap    template.FuncMap
-	HTMLRender render.HTMLRender
-	pool       sync.Pool
-	Logger     *fesLog.Logger
-	middles    []MiddlewareFunc
+	funcMap      template.FuncMap
+	HTMLRender   render.HTMLRender
+	pool         sync.Pool
+	Logger       *fesLog.Logger
+	middles      []MiddlewareFunc
+	errorHandler ErrorHandler
 }
 
 func NewEngine() *Engine {
@@ -112,4 +115,8 @@ func (e *Engine) Run() {
 
 func (e *Engine) Use(middlewareFunc ...MiddlewareFunc) {
 	e.middles = middlewareFunc
+}
+
+func (e *Engine) RegisterErrorHandler(handler ErrorHandler) {
+	e.errorHandler = handler
 }

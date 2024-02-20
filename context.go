@@ -286,3 +286,12 @@ func (c *Context) SetStatusCode(code int) {
 	c.W.WriteHeader(code)
 	c.StatusCode = code
 }
+
+func (c *Context) HandleError(statusCode int, obj any, err error) {
+	if err != nil {
+		code, data := c.engine.errorHandler(err)
+		c.JSON(code, data)
+		return
+	}
+	c.JSON(statusCode, obj)
+}
