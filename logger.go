@@ -92,7 +92,7 @@ var defaultFormatter = func(param *LogFormatterParams) string {
 	if param.isDisplayColor {
 		return fmt.Sprintf("%s[fesgo]%s %s %v %s |%s %3d %s| %s %10s %s | %13v |%s %-7s %s  %s %#v %s \n",
 			yellow, reset,
-			blue, param.TimeStamp.Format("2006/01/02 - 15:04:05"), reset,
+			blue, param.TimeStamp.Format("2006-01-02 15:04:05"), reset,
 			param.StatusCodeColor(), param.StatusCode, reset,
 			red, param.Latency, reset,
 			param.ClientIP,

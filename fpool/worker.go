@@ -1,6 +1,9 @@
 package fpool
 
-import "time"
+import (
+	fesLog "github.com/dalefeng/fesgo/logger"
+	"time"
+)
 
 type Worker struct {
 	pool     *Pool
@@ -9,17 +12,35 @@ type Worker struct {
 }
 
 func (w *Worker) run() {
+	w.pool.incRunning()
 	go w.running()
 }
 
 // running 持久运行任务
 func (w *Worker) running() {
-	for f := range w.task {
-		if f != nil {
-			f()
+	defer func() {
+		if err := recover(); err != nil {
+			if w.pool.panicHandle != nil {
+				w.pool.panicHandle()
+			} else {
+				fesLog.Default().Error("running panic", err)
+			}
+			// 重新启动 running
+			fesLog.Default().Info("panic restart running task")
+			w.run()
+			w.pool.Put(w)
 		}
+	}()
+	for f := range w.task {
+		// 所有任务都执行完了
+		if f == nil {
+			w.pool.descRunning()
+			w.pool.workerCache.Put(w)
+			w.pool.cond.Signal()
+			return
+		}
+		f()
 		// 运行完任务后，将worker放回池中
 		w.pool.Put(w)
-		w.pool.descRunning()
 	}
 }
