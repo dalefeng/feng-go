@@ -2,13 +2,12 @@ package fpool
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
-const DefaultExpire = 600 * time.Second
+const DefaultExpire = 3 * time.Second
 
 var (
 	ErrorInvalidCap    = errors.New("cap must be greater than 0")
@@ -77,14 +76,15 @@ func (p *Pool) GetWorker() *Worker {
 	p.lock.Lock()
 	// 如果有空闲的worker，直接获取
 	idleWorker := p.workers
-	n := len(idleWorker) - 1
+	n := len(idleWorker)
 	if n > 0 {
-		w := idleWorker[n]
-		p.workers = idleWorker[:n]
+		w := idleWorker[n-1]
+		p.workers = idleWorker[:n-1]
 		p.lock.Unlock()
 		return w
 	}
 	p.lock.Unlock()
+
 	// 如果容量没超过限制且没有空闲的worker，创建一个新的worker
 	if p.running < p.cap {
 		c := p.workerCache.Get()
@@ -97,12 +97,6 @@ func (p *Pool) GetWorker() *Worker {
 		} else {
 			w = c.(*Worker)
 		}
-
-		//w := &Worker{
-		//	pool: p,
-		//	task: make(chan func(), 1),
-		//}
-
 		// worker 创建后启动一个携程持续监听任务
 		w.run()
 		return w
@@ -114,10 +108,11 @@ func (p *Pool) GetWorker() *Worker {
 func (p *Pool) waitWorker() *Worker {
 	p.lock.Lock()
 	defer p.lock.Unlock()
-	fmt.Println("cond 等待通知")
 
+	//fmt.Println("cond 等待通知")
 	p.cond.Wait()
-	fmt.Println("cond 得到通知，有空闲的worker")
+	//fmt.Println("cond 得到通知，有空闲的worker")
+
 	idleWorker := p.workers
 	n := len(idleWorker) - 1
 	// 如果没有空间，阻塞等待
@@ -146,8 +141,8 @@ func (p *Pool) incRunning() {
 }
 
 // descRunning 减少正在运行的worker数量
-func (p *Pool) descRunning() {
-	atomic.AddInt32(&p.running, -1)
+func (p *Pool) descRunning(c int32) {
+	atomic.AddInt32(&p.running, -c)
 }
 
 // Release 释放池
@@ -196,35 +191,42 @@ func (p *Pool) expireWorkerTicker() {
 func (p *Pool) expireWorker() {
 	p.lock.Lock()
 	defer p.lock.Unlock()
-	n := len(p.workers)
+	idleWorker := p.workers
+	n := len(idleWorker)
 	if n == 0 {
 		return
 	}
-	var clearN = 0
+	var clearN = -1
 	now := time.Now()
-	for index, w := range p.workers {
+	for index, w := range idleWorker {
+		// 遇到第一个没有过期的worker，停止清理
 		if now.Sub(w.lastTime) <= p.expire {
 			break
 		}
-		w.task = nil
 		clearN = index
+		w.task <- nil
 	}
-	fmt.Println("清除过期worker开始 ", p.running, p.workers)
-	if clearN >= len(p.workers)-1 {
+	if clearN == -1 {
+		return
+	}
+	//fmt.Println("清除过期worker开始 ", p.running, len(idleWorker))
+	if clearN == len(idleWorker)-1 {
 		// 如果最后一个过期的worker在末尾，说明前面的worker已经全部过期，清空操作
-		for _, w := range p.workers[0:] {
-			p.descRunning()
+		//fmt.Println("清除过期worker全部过期", "正在运行", p.running, "过期", len(idleWorker))
+		p.descRunning(int32(len(idleWorker)))
+		p.workers = idleWorker[:0]
+		for _, w := range idleWorker {
 			p.workerCache.Put(w)
 		}
-		p.workers = p.workers[:0]
 	} else {
-		p.workers = p.workers[clearN+1:]
-		for _, w := range p.workers[0:clearN] {
-			p.descRunning()
+		//fmt.Println("清除过期worker部分过期", p.running, "空闲", len(idleWorker), "过期", len(idleWorker[:clearN]))
+		p.workers = idleWorker[clearN+1:]
+		for _, w := range idleWorker[0 : clearN+1] {
 			p.workerCache.Put(w)
 		}
+		p.descRunning(int32(len(idleWorker[0 : clearN+1])))
 	}
-	fmt.Println("清除过期worker完成", p.running, p.workers)
+	//fmt.Println("清除过期worker完成", "正在运行", p.running, "空闲", len(p.workers))
 }
 
 func (p *Pool) Running() int {
@@ -233,4 +235,8 @@ func (p *Pool) Running() int {
 
 func (p *Pool) Free() int {
 	return int(p.cap - p.running)
+}
+
+func (p *Pool) GetIdleWorkerCount() any {
+	return len(p.workers)
 }

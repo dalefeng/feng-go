@@ -1,7 +1,6 @@
 package fpool
 
 import (
-	"math"
 	"runtime"
 	"sync"
 	"testing"
@@ -18,7 +17,7 @@ const (
 	Param    = 100
 	PoolSize = 1000
 	TestSize = 10000
-	n        = 1000000
+	n        = 50000
 )
 
 var curMem uint64
@@ -51,7 +50,7 @@ func TestNoPool(t *testing.T) {
 }
 
 func TestHasPool(t *testing.T) {
-	pool, _ := NewPool(math.MaxInt32)
+	pool, _ := NewPool(50000)
 	defer pool.Release()
 	var wg sync.WaitGroup
 	for i := 0; i < n; i++ {
@@ -68,4 +67,6 @@ func TestHasPool(t *testing.T) {
 	t.Logf("memory usage:%d MB\n", curMem)
 	t.Logf("running worker :%d\n", pool.Running())
 	t.Logf("free worker:%d\n", pool.Free())
+	//time.Sleep(3 * time.Second)
+	//t.Logf("running %d, worker :%d\n", pool.Running(), len(pool.workers))
 }

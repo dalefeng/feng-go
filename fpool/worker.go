@@ -32,10 +32,8 @@ func (w *Worker) running() {
 		}
 	}()
 	for f := range w.task {
-		// 所有任务都执行完了
+		// 任务为空时，退出
 		if f == nil {
-			w.pool.descRunning()
-			w.pool.workerCache.Put(w)
 			w.pool.cond.Signal()
 			return
 		}
