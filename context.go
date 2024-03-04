@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sync"
 )
 
 var defaultMultipartMemory int64 = 32 << 20 // 32M
@@ -30,6 +31,31 @@ type Context struct {
 	StatusCode            int
 	DisallowUnknownFields bool
 	Logger                *fesLog.Logger
+
+	Keys map[string]any
+	mu   sync.RWMutex
+
+	sameSite http.SameSite
+}
+
+func (c *Context) SetSameSite(s http.SameSite) {
+	c.sameSite = s
+}
+
+func (c *Context) Set(key string, value any) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.Keys == nil {
+		c.Keys = make(map[string]any)
+	}
+	c.Keys[key] = value
+}
+
+func (c *Context) Get(key string) (value string, ok bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	value, ok = c.Keys[key].(string)
+	return
 }
 
 func (c *Context) ClearContext() {
@@ -294,4 +320,21 @@ func (c *Context) HandleError(statusCode int, obj any, err error) {
 		return
 	}
 	c.JSON(statusCode, obj)
+}
+
+func (c *Context) SetBase64Auth(username, password string) {
+	c.R.Header.Set("Authorization", "Basic "+BasicAuth(username, password))
+}
+
+func (c *Context) SetCookie(name, value string, maxAge int, path, domain string, secure, httpOnly bool) {
+	cookie := &http.Cookie{
+		Name:     name,
+		Value:    value,
+		Path:     path,
+		Domain:   domain,
+		MaxAge:   maxAge,
+		Secure:   secure,
+		HttpOnly: httpOnly,
+	}
+	http.SetCookie(c.W, cookie)
 }
