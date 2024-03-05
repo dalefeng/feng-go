@@ -13,7 +13,9 @@ type JwtHandler struct {
 	PrivateKeys   []string      // 私钥
 	Expire        time.Duration // 过期时间
 	expireFunc    func() time.Time
-	RefreshExpire int64 // 刷新token过期时间
+	RefreshExpire time.Duration // 刷新token过期时间
+	SendCookie    bool          // 是否发送cookie
+	CookieName    string        // cookie名称
 }
 
 type JwtResponse struct {
@@ -59,7 +61,20 @@ func (j *JwtHandler) LoginHandler(ctx *fesgo.Context) (*JwtResponse, error) {
 	}
 	jr := &JwtResponse{
 		Token: tokenString,
-		//RefreshToken: tokenString,
+	}
+
+	// RefreshToken
+	refToken, err := j.refreshToken(token)
+	if err != nil {
+		return nil, err
+	}
+	jr.RefreshToken = refToken
+
+	if j.SendCookie {
+		if j.CookieName == "" {
+			j.CookieName = "fes_token"
+		}
+		ctx.SetCookie(j.CookieName, tokenString, int(j.Expire.Seconds()), "/", "", false, true)
 	}
 	return jr, nil
 }
@@ -70,4 +85,16 @@ func (j *JwtHandler) usingPublicKeyAlgorithm() bool {
 		return true
 	}
 	return false
+}
+
+// refreshToken 获取刷新token
+func (j *JwtHandler) refreshToken(token *jwt.Token) (tokenString string, err error) {
+	claims := token.Claims.(jwt.MapClaims)
+	claims["exp"] = j.expireFunc().Add(j.RefreshExpire).Unix()
+	if j.usingPublicKeyAlgorithm() {
+		tokenString, err = token.SignedString(j.PrivateKeys)
+	} else {
+		tokenString, err = token.SignedString([]byte(j.Secret))
+	}
+	return
 }

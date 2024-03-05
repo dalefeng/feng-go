@@ -329,11 +329,12 @@ func (c *Context) SetBase64Auth(username, password string) {
 func (c *Context) SetCookie(name, value string, maxAge int, path, domain string, secure, httpOnly bool) {
 	cookie := &http.Cookie{
 		Name:     name,
-		Value:    value,
+		Value:    url.QueryEscape(value),
 		Path:     path,
 		Domain:   domain,
 		MaxAge:   maxAge,
 		Secure:   secure,
+		SameSite: c.sameSite,
 		HttpOnly: httpOnly,
 	}
 	http.SetCookie(c.W, cookie)
