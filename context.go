@@ -51,10 +51,10 @@ func (c *Context) Set(key string, value any) {
 	c.Keys[key] = value
 }
 
-func (c *Context) Get(key string) (value string, ok bool) {
+func (c *Context) Get(key string) (value any, ok bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	value, ok = c.Keys[key].(string)
+	value, ok = c.Keys[key]
 	return
 }
 
