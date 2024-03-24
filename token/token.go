@@ -20,6 +20,8 @@ type JwtHandler struct {
 	SendCookie    bool          // 是否发送cookie
 	CookieName    string        // cookie名称
 	RefreshKey    string
+	Header        string
+	AuthHandler   func(ctx *fesgo.Context, err error)
 }
 
 type JwtResponse struct {
@@ -175,4 +177,53 @@ func (j *JwtHandler) RefreshHandler(ctx *fesgo.Context) (*JwtResponse, error) {
 		ctx.SetCookie(j.CookieName, tokenString, int(j.Expire.Seconds()), "/", "", false, true)
 	}
 	return jr, nil
+}
+
+// AuthInterceptor jwt 中间件
+func (j *JwtHandler) AuthInterceptor(next fesgo.HandlerFunc) fesgo.HandlerFunc {
+	return func(ctx *fesgo.Context) {
+		if j.Header == "" {
+			j.Header = "Authorization"
+		}
+		token := ctx.R.Header.Get(j.Header)
+		if token == "" {
+			if j.SendCookie {
+				cookie, err := ctx.R.Cookie(JTWTOKENCOOKIE)
+				if err != nil {
+					j.AuthErrorHandle(ctx, err)
+					return
+				}
+				token = cookie.String()
+			}
+		}
+		if token == "" {
+			j.AuthErrorHandle(ctx, errors.New("token is nil"))
+			return
+		}
+
+		//	解析 token
+		t, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
+			if j.usingPublicKeyAlgorithm() {
+				return j.PrivateKeys, nil
+			} else {
+				return j.Secret, nil
+			}
+		})
+		if err != nil {
+			j.AuthErrorHandle(ctx, err)
+			return
+		}
+		claims := t.Claims.(jwt.MapClaims)
+		ctx.Set("jwt_claims", claims)
+		next(ctx)
+	}
+}
+
+func (j *JwtHandler) AuthErrorHandle(ctx *fesgo.Context, err error) {
+	if j.AuthHandler != nil {
+		j.AuthHandler(ctx, nil)
+	} else {
+		ctx.SetStatusCode(401)
+	}
+	return
 }
