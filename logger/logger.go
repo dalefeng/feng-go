@@ -94,7 +94,7 @@ func Default() *Logger {
 	return &Logger{
 		Level:     LevelDebug,
 		Out:       []*LoggerWriter{w}, // 默认输出到控制台
-		Formatter: &JsonFormatter{},
+		Formatter: &TextFormatter{},
 	}
 }
 
