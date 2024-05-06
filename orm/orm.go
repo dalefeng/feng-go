@@ -22,6 +22,9 @@ type FesSession struct {
 	FieldName   []string
 	PlaceHolder []string
 	values      []interface{}
+	UpdateParam strings.Builder
+	WhereParam  strings.Builder
+	WhereValue  []interface{}
 }
 
 func Open(driverName, dataSourceName string) *FesDB {
@@ -50,7 +53,7 @@ func (db *FesDB) NewSession() *FesSession {
 
 }
 func (s *FesSession) Table(name string) *FesSession {
-	s.tableName = name
+	s.tableName = s.db.Prefix + name
 	return s
 }
 
@@ -115,6 +118,65 @@ func (s *FesSession) InsertBatch(data []any) (int64, int64, error) {
 		return -1, -1, err
 	}
 	return id, affected, nil
+}
+
+func (s *FesSession) Update(data ...any) (int64, int64, error) {
+
+	if len(data) == 00 || len(data) > 2 {
+		return -1, -1, errors.New("param not valid")
+	}
+
+	single := true
+	if len(data) == 2 {
+		single = false
+	}
+
+	// //update table set age=?,name=? where id=?
+	if !single {
+		if s.UpdateParam.String() != "" {
+			s.UpdateParam.WriteString(",")
+		}
+		s.UpdateParam.WriteString(data[0].(string))
+		s.UpdateParam.WriteString(" = ?")
+		s.values = append(s.values, data[1])
+	}
+	query := fmt.Sprintf("update %s set %s", s.tableName, s.UpdateParam.String())
+	var sb strings.Builder
+	sb.WriteString(query)
+	sb.WriteString(s.WhereParam.String())
+
+	s.db.logger.Info("sql", sb.String())
+	stmt, err := s.db.db.Prepare(sb.String())
+	if err != nil {
+		return -1, -1, err
+	}
+	s.values = append(s.values, s.WhereValue...)
+	res, err := stmt.Exec(s.values...)
+	if err != nil {
+		return -1, -1, err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return -1, -1, err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return -1, -1, err
+	}
+	return id, affected, nil
+}
+
+func (s *FesSession) Where(field string, value any) *FesSession {
+	if s.WhereParam.String() == "" {
+		s.WhereParam.WriteString(" where ")
+	} else {
+		s.WhereParam.WriteString(" and ")
+	}
+	s.WhereParam.WriteString(field)
+	s.WhereParam.WriteString(" = ")
+	s.WhereParam.WriteString(" ? ")
+	s.WhereValue = append(s.WhereValue, value)
+	return s
 }
 
 func (s *FesSession) fieldNames(data any) {
