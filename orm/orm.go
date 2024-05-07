@@ -48,8 +48,19 @@ func Open(driverName, dataSourceName string) *FesDB {
 	return &FesDB{db: db, logger: fesLog.Default()}
 }
 
-func (db *FesDB) NewSession() *FesSession {
-	return &FesSession{db: db}
+func (db *FesDB) NewSession(data any) *FesSession {
+	m := &FesSession{db: db}
+	t := reflect.TypeOf(data)
+
+	tVar := t.Elem()
+	if t.Kind() == reflect.Pointer {
+		tVar = t.Elem()
+	}
+
+	if m.tableName == "" {
+		m.tableName = m.db.Prefix + strings.ToLower(Name(tVar.Name()))
+	}
+	return m
 
 }
 func (s *FesSession) Table(name string) *FesSession {
@@ -139,6 +150,47 @@ func (s *FesSession) Update(data ...any) (int64, int64, error) {
 		s.UpdateParam.WriteString(data[0].(string))
 		s.UpdateParam.WriteString(" = ?")
 		s.values = append(s.values, data[1])
+	} else {
+		updateData := data[0]
+		t := reflect.TypeOf(updateData)
+		v := reflect.ValueOf(updateData)
+		if t.Kind() != reflect.Pointer {
+			panic("updateData must be a struct")
+		}
+
+		tVar := t.Elem()
+		vVar := v.Elem()
+		if s.tableName == "" {
+			s.tableName = s.db.Prefix + strings.ToLower(Name(tVar.Name()))
+		}
+		for i := 0; i < tVar.NumField(); i++ {
+			field := tVar.Field(i)
+
+			tag := field.Tag
+			sqlTag := tag.Get("form")
+			if sqlTag == "" {
+				sqlTag = strings.ToLower(Name(field.Name))
+			} else {
+				if strings.Contains(sqlTag, "auto_increment") {
+					continue
+				}
+				if strings.Contains(sqlTag, ",") {
+					sqlTag = sqlTag[:strings.Index(sqlTag, ",")]
+				}
+			}
+
+			val := vVar.Field(i).Interface()
+			if strings.ToLower(sqlTag) == "id" && IsAutoId(val) {
+				continue
+			}
+			if s.UpdateParam.String() != "" {
+				s.UpdateParam.WriteString(",")
+			}
+			s.UpdateParam.WriteString(data[0].(string))
+			s.UpdateParam.WriteString(" = ?")
+			s.values = append(s.values, val)
+		}
+
 	}
 	query := fmt.Sprintf("update %s set %s", s.tableName, s.UpdateParam.String())
 	var sb strings.Builder
@@ -166,16 +218,175 @@ func (s *FesSession) Update(data ...any) (int64, int64, error) {
 	return id, affected, nil
 }
 
+func (s *FesSession) Delete(data any) (int64, error) {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("delete from %s", s.tableName))
+	sb.WriteString(s.WhereParam.String())
+	s.db.logger.Info(sb.String())
+
+	stmt, err := s.db.db.Prepare(sb.String())
+	if err != nil {
+		return 0, err
+	}
+	r, err := stmt.Exec(s.WhereValue...)
+	if err != nil {
+		return 0, err
+	}
+
+	return r.RowsAffected()
+
+}
+
+func (s *FesSession) Select(data any, fields ...string) ([]any, error) {
+	t := reflect.TypeOf(data)
+	if t.Kind() != reflect.Pointer {
+		return nil, errors.New("data must ne pointer")
+	}
+	var sb strings.Builder
+	fieldStr := "*"
+	if len(fields) > 0 {
+		fieldStr = strings.Join(fields, ",")
+	}
+	sb.WriteString(fmt.Sprintf("select %s from %s", fieldStr, s.tableName))
+	sb.WriteString(s.WhereParam.String())
+	s.db.logger.Info(sb.String())
+
+	prepare, err := s.db.db.Prepare(sb.String())
+	if err != nil {
+		return nil, err
+	}
+	rows, err := prepare.Query(s.WhereValue...)
+	if err != nil {
+		return nil, err
+	}
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]any, 0)
+	for rows.Next() {
+		data = reflect.New(t.Elem()).Interface()
+		values := make([]any, len(columns))
+		fieldScan := make([]any, len(columns))
+
+		for i := range fieldScan {
+			fieldScan[i] = &values[i]
+		}
+		err = rows.Scan(fieldScan...)
+		if err != nil {
+			return nil, err
+		}
+		tVar := t.Elem()
+		tVal := reflect.ValueOf(data).Elem()
+		for i := 0; i < tVar.NumField(); i++ {
+			name := tVar.Field(i).Name
+			tag := tVar.Field(i).Tag
+			sqlTag := tag.Get("fesgo")
+			if sqlTag == "" {
+				sqlTag = strings.ToLower(Name(name))
+			} else {
+				if strings.Contains(sqlTag, ",") {
+					sqlTag = sqlTag[:strings.Index(sqlTag, ",")]
+				}
+			}
+			for j, colName := range columns {
+				if sqlTag == colName {
+					target := reflect.ValueOf(values[j]).Interface()
+					fieldType := tVar.Field(i).Type
+					result := reflect.ValueOf(target).Convert(fieldType)
+					tVal.Field(i).Set(result)
+				}
+			}
+		}
+		result = append(result, data)
+	}
+	return result, nil
+}
+
+func (s *FesSession) SelectOne(data any, fields ...string) error {
+	t := reflect.TypeOf(data)
+	if t.Kind() != reflect.Pointer {
+		return errors.New("data must ne pointer")
+	}
+	var sb strings.Builder
+	fieldStr := "*"
+	if len(fields) > 0 {
+		fieldStr = strings.Join(fields, ",")
+	}
+	sb.WriteString(fmt.Sprintf("select %s from %s", fieldStr, s.tableName))
+	sb.WriteString(s.WhereParam.String())
+	s.db.logger.Info(sb.String())
+
+	prepare, err := s.db.db.Prepare(sb.String())
+	if err != nil {
+		return err
+	}
+	rows, err := prepare.Query(s.WhereValue...)
+	if err != nil {
+		return err
+	}
+	columns, err := rows.Columns()
+	if err != nil {
+		return err
+	}
+	values := make([]any, len(columns))
+	fieldScan := make([]any, len(columns))
+
+	for i := range fieldScan {
+		fieldScan[i] = &values[i]
+	}
+	if rows.Next() {
+		err = rows.Scan(fieldScan...)
+		if err != nil {
+			return err
+		}
+		tVar := t.Elem()
+		tVal := reflect.ValueOf(data).Elem()
+		for i := 0; i < tVar.NumField(); i++ {
+			name := tVar.Field(i).Name
+			tag := tVar.Field(i).Tag
+			sqlTag := tag.Get("fesgo")
+			if sqlTag == "" {
+				sqlTag = strings.ToLower(Name(name))
+			} else {
+				if strings.Contains(sqlTag, ",") {
+					sqlTag = sqlTag[:strings.Index(sqlTag, ",")]
+				}
+			}
+			for j, colName := range columns {
+				if sqlTag == colName {
+					target := reflect.ValueOf(values[j]).Interface()
+					fieldType := tVar.Field(i).Type
+					result := reflect.ValueOf(target).Convert(fieldType)
+					tVal.Field(i).Set(result)
+				}
+			}
+		}
+
+	}
+	return nil
+}
+
 func (s *FesSession) Where(field string, value any) *FesSession {
 	if s.WhereParam.String() == "" {
 		s.WhereParam.WriteString(" where ")
-	} else {
-		s.WhereParam.WriteString(" and ")
 	}
 	s.WhereParam.WriteString(field)
 	s.WhereParam.WriteString(" = ")
 	s.WhereParam.WriteString(" ? ")
 	s.WhereValue = append(s.WhereValue, value)
+	return s
+}
+
+func (s *FesSession) And(field string, value any) *FesSession {
+	s.WhereParam.WriteString(" and ")
+	return s
+
+}
+
+func (s *FesSession) Or(field string, value any) *FesSession {
+	s.WhereParam.WriteString(" or ")
 	return s
 }
 
