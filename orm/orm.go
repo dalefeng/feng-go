@@ -390,6 +390,77 @@ func (s *FesSession) Or(field string, value any) *FesSession {
 	return s
 }
 
+func (s *FesSession) Exec(sql string, values ...any) (int64, error) {
+	stmt, err := s.db.db.Prepare(sql)
+	if err != nil {
+		return 0, err
+	}
+	exec, err := stmt.Exec(values)
+	if err != nil {
+		return 0, err
+	}
+	if strings.Contains(strings.ToLower(sql), "insert") {
+		return exec.LastInsertId()
+	}
+	return exec.RowsAffected()
+}
+
+func (s *FesSession) QueryRaw(sql string, data any, queryValues ...any) error {
+	t := reflect.TypeOf(data)
+	if t.Kind() != reflect.Pointer {
+		return errors.New("data must be pointer")
+	}
+	stmt, err := s.db.db.Prepare(sql)
+	if err != nil {
+		return err
+	}
+	rows, err := stmt.Query(queryValues)
+	if err != nil {
+		return err
+	}
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return err
+	}
+	values := make([]any, len(columns))
+	fieldScan := make([]any, len(columns))
+
+	for i := range fieldScan {
+		fieldScan[i] = &values[i]
+	}
+	if rows.Next() {
+		err = rows.Scan(fieldScan...)
+		if err != nil {
+			return err
+		}
+		tVar := t.Elem()
+		tVal := reflect.ValueOf(data).Elem()
+		for i := 0; i < tVar.NumField(); i++ {
+			name := tVar.Field(i).Name
+			tag := tVar.Field(i).Tag
+			sqlTag := tag.Get("fesgo")
+			if sqlTag == "" {
+				sqlTag = strings.ToLower(Name(name))
+			} else {
+				if strings.Contains(sqlTag, ",") {
+					sqlTag = sqlTag[:strings.Index(sqlTag, ",")]
+				}
+			}
+			for j, colName := range columns {
+				if sqlTag == colName {
+					target := reflect.ValueOf(values[j]).Interface()
+					fieldType := tVar.Field(i).Type
+					result := reflect.ValueOf(target).Convert(fieldType)
+					tVal.Field(i).Set(result)
+				}
+			}
+		}
+
+	}
+	return nil
+}
+
 func (s *FesSession) fieldNames(data any) {
 	t := reflect.TypeOf(data)
 	v := reflect.ValueOf(data)
