@@ -37,7 +37,10 @@ func (c *FesHttpClient) Response(req *http.Request) ([]byte, error) {
 	return c.responseHandle(req)
 }
 
-func (c *FesHttpClient) Get(url string) ([]byte, error) {
+func (c *FesHttpClient) Get(url string, args map[string]any) ([]byte, error) {
+	if len(args) > 0 {
+		url = url + "?" + c.toValues(args)
+	}
 	request, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err

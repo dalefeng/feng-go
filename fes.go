@@ -36,6 +36,8 @@ func NewEngine() *Engine {
 func Default() *Engine {
 	engine := NewEngine()
 	engine.Use(Recovery)
+	engine.Use(Logging)
+
 	engine.Logger = fesLog.Default()
 	return engine
 }
